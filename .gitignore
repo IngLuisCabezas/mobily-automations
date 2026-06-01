@@ -10,13 +10,13 @@ desktop.ini
 *.swo
 *~
 
-# Logs y artefactos locales
+# Logs and local artifacts
 *.log
 *.tar.gz
 *.zip
 artifact_*
 
-# Secretos y configuración local (no subir a GitHub)
+# Secrets and local config (do not commit to GitHub)
 .env
 .env.*
 *.pem
@@ -24,6 +24,6 @@ artifact_*
 credentials*
 secrets*
 
-# Jenkins workspace temporal
+# Temporary Jenkins workspace
 workspace/
 target/

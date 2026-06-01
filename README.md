@@ -33,7 +33,7 @@ Three-stage pipeline:
 2. **Validate disk space** — On all nodes with that label, verifies `ATA_HOME` is set and at least `params.REQUIRED_GB` GB are free; aborts if any node fails.
 3. **Parallel backup** — On each node, optionally dumps config items when `ATA_INSTANCE=SV1`, then creates a `.tar.gz` of the application tree (excluding logs, archives, and releases per script rules), copies a versioned `.profile`, and archives logs as Jenkins artifacts.
 
-**SV1 config items backup** (branch `backup_pipeline`): when `ATA_INSTANCE` is `SV1`, the pipeline creates `$ATA_HOME/ConfigItemsBk_${BUILD_NUMBER}_$DATE`, runs `rt_dump`, `da_dump`, and `cfg -x config_items.ini` into that folder, then includes it in the filesystem archive.
+**SV1 config items backup** (branch `backup_pipeline`): when `ATA_INSTANCE` is `SV1`, the pipeline creates `$ATA_HOME/ConfigItemsBk_${BUILD_NUMBER}_$DATE`, runs `rt_dump`, `da_dump`, and `cfg -x config_items.ini` into that folder, then continues with the filesystem `.tar.gz` written to `$ATA_HOME`.
 
 **Expected parameters (example):**
 

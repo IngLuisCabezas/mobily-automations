@@ -160,42 +160,22 @@ pipeline {
 
                                         cp .profile profile_${BUILD_NUMBER}_\$DATE
 
-                                        if [ -d "\$CONFIG_BK_DIR" ]; then
-                                            tar --ignore-failed-read \\
-                                                --exclude='data/server/archive/*' \\
-                                                --exclude='data/server/log/*' \\
-                                                --exclude='data/server/log.old/*' \\
-                                                --exclude='data/server/config/tomcat/logs/*' \\
-                                                --exclude='admin/releases/*' \\
-                                                --exclude='sv/*.tar.gz' \\
-                                                --exclude="*.sok" \\
-                                                -zcf "\$FILE" \\
-                                                .cvsignore .gsenv .orapathenv .perlenv \\
-                                                diameterenv kafkaenv svhaenv pxenv \\
-                                                cmuplift admin csg_view CVS data diameter \\
-                                                kafka imp rel px svt \\
-                                                profile_${BUILD_NUMBER}_\$DATE \\
-                                                "\$CONFIG_BK_DIR" \\
-                                                sv/\$(svversion | awk 'FNR==3') \\
-                                                *env
-                                        else
-                                            tar --ignore-failed-read \\
-                                                --exclude='data/server/archive/*' \\
-                                                --exclude='data/server/log/*' \\
-                                                --exclude='data/server/log.old/*' \\
-                                                --exclude='data/server/config/tomcat/logs/*' \\
-                                                --exclude='admin/releases/*' \\
-                                                --exclude='sv/*.tar.gz' \\
-                                                --exclude="*.sok" \\
-                                                -zcf "\$FILE" \\
-                                                .cvsignore .gsenv .orapathenv .perlenv \\
-                                                diameterenv kafkaenv svhaenv pxenv \\
-                                                cmuplift admin csg_view CVS data diameter \\
-                                                kafka imp rel px svt \\
-                                                profile_${BUILD_NUMBER}_\$DATE \\
-                                                sv/\$(svversion | awk 'FNR==3') \\
-                                                *env
-                                        fi
+                                        tar --ignore-failed-read \
+                                            --exclude='data/server/archive/*' \
+                                            --exclude='data/server/log/*' \
+                                            --exclude='data/server/log.old/*' \
+                                            --exclude='data/server/config/tomcat/logs/*' \
+                                            --exclude='admin/releases/*' \
+                                            --exclude='sv/*.tar.gz' \
+                                            --exclude="*.sok" \
+                                            -zcf "\$ATA_HOME/\$FILE" \
+                                            .cvsignore .gsenv .orapathenv .perlenv \
+                                            diameterenv kafkaenv svhaenv pxenv \
+                                            cmuplift admin csg_view CVS data diameter \
+                                            kafka imp rel px svt \
+                                            profile_${BUILD_NUMBER}_\$DATE \
+                                            sv/\$(svversion | awk 'FNR==3') \
+                                            *env
 
                                         echo "Backup finished on ${nodeName}"
                                         ls -lh "\$ATA_HOME/\$FILE"

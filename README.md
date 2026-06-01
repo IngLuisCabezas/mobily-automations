@@ -23,7 +23,7 @@ mobily_project/
 
 | Script | Description |
 |--------|-------------|
-| [`jenkins/pipelines/FileSystemApplicatonBackup.groovy`](jenkins/pipelines/FileSystemApplicatonBackup.groovy) | **Application filesystem backup** pipeline on Jenkins nodes tagged by environment. Validates node availability, checks disk space on all nodes with the label, and runs backup in parallel. |
+| [`jenkins/pipelines/FileSystemApplicatonBackup.groovy`](jenkins/pipelines/FileSystemApplicatonBackup.groovy) | **Application filesystem backup** on Jenkins nodes tagged by environment. Validates node availability and disk space, then runs backup in parallel. On SV1 nodes, also exports main SingleView tables and config items before creating the filesystem archive in `ATA_HOME`. |
 
 #### FileSystemApplicatonBackup.groovy
 
@@ -31,9 +31,39 @@ Three-stage pipeline:
 
 1. **Validate node** — Ensures an agent exists with the label in `params.Environment` (20 s timeout).
 2. **Validate disk space** — On all nodes with that label, verifies `ATA_HOME` is set and at least `params.REQUIRED_GB` GB are free; aborts if any node fails.
-3. **Parallel backup** — On each node, optionally dumps config items when `ATA_INSTANCE=SV1`, then creates a `.tar.gz` of the application tree (excluding logs, archives, and releases per script rules), copies a versioned `.profile`, and archives logs as Jenkins artifacts.
+3. **Parallel backup** — On each node, runs the backup steps below in order, then archives Jenkins logs as artifacts.
 
-**SV1 config items backup** (branch `backup_pipeline`): when `ATA_INSTANCE` is `SV1`, the pipeline creates `$ATA_HOME/ConfigItemsBk_${BUILD_NUMBER}_$DATE`, runs `rt_dump`, `da_dump`, and `cfg -x config_items.ini` into that folder, then continues with the filesystem `.tar.gz` written to `$ATA_HOME`.
+**Backup outputs (per node):**
+
+| Output | Location | When |
+|--------|----------|------|
+| Config items + SingleView table dumps | `$ATA_HOME/ConfigItemsBk_${BUILD_NUMBER}_$DATE/` | `ATA_INSTANCE=SV1` only |
+| Filesystem archive | `$ATA_HOME/FSBackup_${BUILD_NUMBER}_$DATE.tar.gz` | All nodes |
+
+**SV1: main SingleView tables and config items** — When `ATA_INSTANCE` is `SV1`, the pipeline creates `$ATA_HOME/ConfigItemsBk_${BUILD_NUMBER}_$DATE`, exports data into that folder, then continues with the filesystem backup.
+
+*SingleView tables* (`da_dump` / `rt_dump` → CSV files):
+
+| Command | Table / object |
+|---------|----------------|
+| `rt_dump` | `ATA_INSTANCE` |
+| `da_dump` | `CE_PartitionResourceMapping` |
+| `da_dump` | `ClusterResource` |
+| `da_dump` | `ClusterStandby` |
+| `da_dump` | `CustomerPartition` |
+| `da_dump` | `CustomerPartitionRange` |
+| `da_dump` | `EventErrorPartitionMap` |
+| `da_dump` | `EventErrorPartitionRange` |
+| `da_dump` | `EventPartitionRange` |
+| `da_dump` | `InstanceGroup` |
+| `da_dump` | `InstanceGroupMap` |
+| `da_dump` | `InstanceStatus` |
+| `da_dump` | `InstanceTypeGateway` |
+| `da_dump` | `ScheduleReplicationGroup` |
+
+*Config items* — `cfg -x config_items.ini` exports configuration items into the same `ConfigItemsBk_*` directory.
+
+**Filesystem backup (all nodes)** — After the SV1 step (if applicable), copies a versioned `.profile` and builds `FSBackup_${BUILD_NUMBER}_$DATE.tar.gz` under `ATA_HOME`, excluding logs, archives, releases, and other paths defined in the pipeline.
 
 **Expected parameters (example):**
 
@@ -45,7 +75,7 @@ Three-stage pipeline:
 **Agent environment variables:**
 
 - `ATA_HOME` — Root of the installation to back up (required).
-- `ATA_INSTANCE` — Optional; recorded in logs.
+- `ATA_INSTANCE` — Instance identifier; when set to `SV1`, triggers SingleView table dumps and config items export (required for SV1 backup).
 
 **Post actions:** on success, archives `*.log` from each node; on failure or abort, informative console messages.
 
@@ -66,6 +96,7 @@ Three-stage pipeline:
 
 - Access to Jenkins with nodes labeled by environment.
 - For backup pipelines: `tar`, `df`, and a shell compatible with the script checks.
+- On SV1 nodes: `rt_dump`, `da_dump`, and `cfg` available on the agent PATH.
 - Read permissions on `ATA_HOME` on agents.
 
 ## License

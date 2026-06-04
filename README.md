@@ -79,6 +79,34 @@ Three-stage pipeline:
 
 **Post actions:** on success, archives `*.log` from each node; on failure or abort, informative console messages.
 
+### Shell scripts
+
+| Script | Description |
+|--------|-------------|
+| [`scripts/PrePostReleaseScript/`](scripts/PrePostReleaseScript/) | **Pre- and post-release health checks** for SingleView clusters. Discovers instances via `da_dump`, runs application, Oracle, and system checks on each node over SSH, and reports PASS / WARN / FAIL with a release go/no-go summary. Thresholds are configured in `health_check.conf`. |
+
+#### PrePostReleaseScript
+
+Run from a SingleView environment account:
+
+```bash
+./scripts/PrePostReleaseScript/PrePost_Release_Health_Checks.sh scripts/PrePostReleaseScript/health_check.conf
+```
+
+**Outputs:** timestamped log `Validation_Checks_YYYYMMDD_HHMMSS.log` in the working directory.
+
+**Configurable thresholds** (in `health_check.conf`): `$ATA_HOME` and `/tmp` free space, available memory, Oracle TNS latency, tablespace usage, and long-running SQL duration.
+
+**Release decision:**
+
+| Result | Action |
+|--------|--------|
+| Any FAIL | Do not install release until resolved |
+| WARN only | May proceed; review warnings |
+| All PASS | Release can be installed |
+
+Full check list, topology matrix, and troubleshooting: [`scripts/PrePostReleaseScript/README.md`](scripts/PrePostReleaseScript/README.md).
+
 ## Using a pipeline in Jenkins
 
 1. Create a **Pipeline** job.
@@ -98,6 +126,7 @@ Three-stage pipeline:
 - For backup pipelines: `tar`, `df`, and a shell compatible with the script checks.
 - On SV1 nodes: `rt_dump`, `da_dump`, and `cfg` available on the agent PATH.
 - Read permissions on `ATA_HOME` on agents.
+- For pre/post-release health checks: SSH access between cluster nodes, `ksh` on remote hosts, and Oracle/SingleView utilities on each node (`svstatus`, `cache_check`, `orasize`, `dbverify`, `orasql`, `tnsping`, `sqlplus`).
 
 ## License
 

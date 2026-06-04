@@ -83,17 +83,18 @@ Three-stage pipeline:
 
 | Script | Description |
 |--------|-------------|
-| [`scripts/PrePostReleaseScript/`](scripts/PrePostReleaseScript/) | **Pre- and post-release health checks** for SingleView clusters. Discovers instances via `da_dump`, runs application, Oracle, and system checks on each node over SSH, and reports PASS / WARN / FAIL with a release go/no-go summary. Thresholds are configured in `health_check.conf`. |
+| [`scripts/PrePostReleaseScript/`](scripts/PrePostReleaseScript/) | **Pre- and post-release health checks** for SingleView clusters. Run **manually from the SV1 Linux server** (not Jenkins). Discovers instances via `da_dump`, SSHs to each node, and reports PASS / WARN / FAIL with a release go/no-go summary. Thresholds are in `health_check.conf`. |
 
 #### PrePostReleaseScript
 
-Run from a SingleView environment account:
+**Where to run:** SV1 SingleView Linux server, logged in as the environment user. This version is **not** designed for Jenkins.
 
 ```bash
-./scripts/PrePostReleaseScript/PrePost_Release_Health_Checks.sh scripts/PrePostReleaseScript/health_check.conf
+cd /path/to/scripts/PrePostReleaseScript
+./PrePost_Release_Health_Checks.sh health_check.conf
 ```
 
-**Outputs:** timestamped log `Validation_Checks_YYYYMMDD_HHMMSS.log` in the working directory.
+**Log output:** Each run creates `Validation_Checks_YYYYMMDD_HHMMSS.log` in the **current working directory**. The file is written during execution and **stays in that folder** after the script ends (full check output and summary). Multiple runs produce multiple `Validation_Checks_*.log` files.
 
 **Configurable thresholds** (in `health_check.conf`): `$ATA_HOME` and `/tmp` free space, available memory, Oracle TNS latency, tablespace usage, and long-running SQL duration.
 
@@ -126,7 +127,7 @@ Full check list, topology matrix, and troubleshooting: [`scripts/PrePostReleaseS
 - For backup pipelines: `tar`, `df`, and a shell compatible with the script checks.
 - On SV1 nodes: `rt_dump`, `da_dump`, and `cfg` available on the agent PATH.
 - Read permissions on `ATA_HOME` on agents.
-- For pre/post-release health checks: SSH access between cluster nodes, `ksh` on remote hosts, and Oracle/SingleView utilities on each node (`svstatus`, `cache_check`, `orasize`, `dbverify`, `orasql`, `tnsping`, `sqlplus`).
+- For pre/post-release health checks: run from **SV1** on a Linux server (not Jenkins); SSH from SV1 to all cluster nodes; `ksh` on remote hosts; Oracle/SingleView utilities on each node (`svstatus`, `cache_check`, `orasize`, `dbverify`, `orasql`, `tnsping`, `sqlplus`).
 
 ## License
 

@@ -2,6 +2,8 @@
 
 Shell automation that validates SingleView application, Oracle database, and system resources **before and after** a release installation. The script discovers all cluster instances, runs checks remotely on each node, and produces a consolidated PASS / WARN / FAIL summary.
 
+> **Execution context:** This version is designed to be run **manually from the SV1 SingleView Linux server** (logged in as the SingleView environment user). It is **not** intended to run from Jenkins or other CI agents in this release.
+
 ## Files
 
 | File | Purpose |
@@ -11,26 +13,56 @@ Shell automation that validates SingleView application, Oracle database, and sys
 
 ## Requirements
 
-- Run from a SingleView environment user account with SSH access to all cluster nodes.
-- **Local (orchestrator):** `bash`, `ssh`, `da_dump`, and a sourced environment (`~/.profile`).
+- **Run from SV1** — Log in to the **SV1** SingleView Linux server as the environment user (`ATA_INSTANCE=SV1`). SV1 acts as the orchestrator: it runs `da_dump InstanceStatus` to discover cluster nodes and SSHs to each instance from there.
+- **Linux server only (this version)** — Run interactively or from a shell session on the SV1 host. Do not run this script from Jenkins; a Jenkins-integrated version is out of scope for the current release.
+- **Local (SV1 orchestrator):** `bash`, `ssh`, `da_dump`, and a sourced SingleView environment (`~/.profile`).
 - **Remote (each node):** `ksh`, SingleView utilities (`svstatus`, `sv_status`, `cache_check`, `cfg`, `cbtasks`, etc.), Oracle tools (`orasize`, `dbverify`, `orasql`, `tnsping`, `sqlplus`), and `$ATADBACONNECT` for database queries.
-- Passwordless SSH from the execution host to each instance hostname returned by `da_dump InstanceStatus`.
+- Passwordless SSH from SV1 to each instance hostname returned by `da_dump InstanceStatus`.
 
 ## Usage
 
+On the **SV1 Linux server**, as the SingleView environment user:
+
 ```bash
-cd scripts/PrePostReleaseScript
+cd /path/to/scripts/PrePostReleaseScript
 chmod +x PrePost_Release_Health_Checks.sh
 ./PrePost_Release_Health_Checks.sh health_check.conf
 ```
 
-The script writes a timestamped log in the current directory:
+Use the full path to `health_check.conf` if you run the script from another directory:
+
+```bash
+./PrePost_Release_Health_Checks.sh /path/to/scripts/PrePostReleaseScript/health_check.conf
+```
+
+## Output log
+
+When the script starts, it creates a log file in the **current working directory** (the folder you are in when you execute the command):
 
 ```text
 Validation_Checks_YYYYMMDD_HHMMSS.log
 ```
 
-Console output is also tee'd to that file.
+| Aspect | Detail |
+|--------|--------|
+| **When created** | At script start, using the run timestamp |
+| **Location** | Same directory as your shell session (`pwd`), not inside the script folder unless you `cd` there first |
+| **Contents** | Full console output: start/end time, environment user, `ORACLE_SID`, every check result (PASS / WARN / FAIL), and the final summary |
+| **Persistence** | The file **remains in that folder** after the script finishes. Each run creates a new `Validation_Checks_*.log`; previous logs are kept unless you remove them |
+| **Console** | Output is also shown on screen (`tee`); the log file is the permanent record for pre/post-release evidence |
+
+Example — after two runs from `/home/svuser/healthchecks/`:
+
+```text
+/home/svuser/healthchecks/Validation_Checks_20260604_093012.log
+/home/svuser/healthchecks/Validation_Checks_20260604_154530.log
+```
+
+List existing logs:
+
+```bash
+ls -l Validation_Checks_*.log
+```
 
 ## Configuration
 
@@ -127,4 +159,4 @@ Remote check sets depend on instance type and HA mode:
 
 ## Related automation
 
-This script is intended for manual or pipeline use around Mobily release deployments. See the root [README](../../README.md) for Jenkins pipelines and other automations in this repository.
+This script is for **manual execution on the SV1 Linux server** before and after Mobily release deployments. Jenkins pipelines in this repository (for example, filesystem backup) are separate automations. See the root [README](../../README.md).

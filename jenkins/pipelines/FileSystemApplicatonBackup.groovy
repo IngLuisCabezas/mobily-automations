@@ -165,6 +165,8 @@ pipeline {
                                             --exclude='data/server/log/*' \
                                             --exclude='data/server/log.old/*' \
                                             --exclude='data/server/config/tomcat/logs/*' \
+                                            --exclude='data/server/invoices/*' \
+                                            --exclude='data/server/output/*' \
                                             --exclude='admin/releases/*' \
                                             --exclude='sv/*.tar.gz' \
                                             --exclude="*.sok" \
@@ -175,7 +177,7 @@ pipeline {
                                             kafka imp rel px svt \
                                             profile_${BUILD_NUMBER}_\$DATE \
                                             sv/\$(svversion | awk 'FNR==3') \
-                                            *env
+                                            *env || true
 
                                         echo "Backup finished on ${nodeName}"
                                         ls -lh "\$ATA_HOME/\$FILE"

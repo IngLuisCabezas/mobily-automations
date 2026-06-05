@@ -194,6 +194,10 @@ pipeline {
                                         echo ""
                                         } >> "\$LOG"
                                     """
+
+                                    stash name: "backup-log-${nodeName}",
+                                           includes: "artifact_${nodeName}.log",
+                                           allowEmpty: true
                                 }
                             }
                         }
@@ -204,24 +208,59 @@ pipeline {
             }
         }
 
+        // Stage 4: Combine all node logs into one Jenkins artifact
+        stage('Stage 4: Combine logs into one artifact') {
+            steps {
+                script {
+                    def nodes = []
+                    Jenkins.instance.nodes.each { n ->
+                        if (n.getLabelString().contains(params.Environment)) {
+                            nodes << n.getNodeName()
+                        }
+                    }
+
+                    def combinedLog = "BackupReport_${BUILD_NUMBER}.log"
+
+                    node("${params.Environment}") {
+                        sh """
+                            rm -f ${combinedLog}
+                            {
+                            echo "=========================================="
+                            echo "  COMBINED BACKUP REPORT"
+                            echo "  Build        : ${BUILD_NUMBER}"
+                            echo "  Environment  : ${params.Environment}"
+                            echo "  Generated    : \$(date '+%Y-%m-%d %H:%M:%S')"
+                            echo "  Nodes        : ${nodes.join(', ')}"
+                            echo "=========================================="
+                            echo ""
+                            } > ${combinedLog}
+                        """
+
+                        for (n in nodes) {
+                            unstash "backup-log-${n}"
+                            sh """
+                                {
+                                echo "=========================================="
+                                echo "  NODE: ${n}"
+                                echo "=========================================="
+                                cat artifact_${n}.log 2>/dev/null || echo "(no log found for ${n})"
+                                echo ""
+                                } >> ${combinedLog}
+                                rm -f artifact_${n}.log
+                            """
+                        }
+
+                        archiveArtifacts artifacts: "${combinedLog}", fingerprint: true
+                    }
+                }
+            }
+        }
+
     }
 
     post {
         success {
-            echo 'Backup stage completed'
-            script {
-                def nodes = []
-                Jenkins.instance.nodes.each { n ->
-                    if (n.getLabelString().contains(params.Environment)) {
-                        nodes << n.getNodeName()
-                    }
-                }
-                for (n in nodes) {
-                    node(n) {
-                        archiveArtifacts artifacts: '*.log', fingerprint: true, allowEmptyArchive: true
-                    }
-                }
-            }
+            echo 'Backup stage completed — combined log archived in Stage 4'
         }
 
         aborted {

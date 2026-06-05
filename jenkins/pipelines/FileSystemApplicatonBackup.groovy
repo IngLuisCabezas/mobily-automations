@@ -170,7 +170,7 @@ pipeline {
                                             --exclude='admin/releases/*' \
                                             --exclude='sv/*.tar.gz' \
                                             --exclude="*.sok" \
-                                            -zcf "\$ATA_HOME/\$FILE" \
+                                            -I "pigz -p 4 -9" -cf "\$ATA_HOME/\$FILE" \
                                             .cvsignore .gsenv .orapathenv .perlenv \
                                             diameterenv kafkaenv svhaenv pxenv \
                                             cmuplift admin csg_view CVS data diameter \

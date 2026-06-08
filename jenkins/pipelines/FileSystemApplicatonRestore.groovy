@@ -71,7 +71,6 @@ pipeline {
                                     echo "  Archive size   : \${ARCHIVE_GB} GB (compressed)"
                                     echo "  Available      : \${AVAILABLE_GB} GB (required: ${params.REQUIRED_GB} GB)"
                                     echo "  Archive exists : yes"
-                                    echo "=============================="
                                     } > "\$LOG"
 
                                     if [ "\$AVAILABLE_GB" -lt "${params.REQUIRED_GB}" ]; then
@@ -104,8 +103,8 @@ pipeline {
             }
         }
 
-        // Stage 3: Pre-restore report only (no rm, no untar) — restore commands commented for review
-        stage('Stage 3: FilesystemRestore pre-check (no restore executed)') {
+        // Stage 3: Fylesystem respote process
+        stage('Stage 3: FilesystemRestore process') {
             steps {
                 script {
                     def nodes = []
@@ -150,45 +149,21 @@ pipeline {
                                         SIZE_H=\$(ls -lh "\$RESTORE_PATH" 2>/dev/null | awk '{print \$5}')
 
                                         {
-                                        echo "============================="
-                                        echo "  FILES SYSTEM RESTORE REPORT"
-                                        echo "  (validation only — no files removed, no extract run)"
+                                        echo "  RESTORE PROCESS (Stage 3)"
                                         echo "  Date             : \$(date '+%Y-%m-%d %H:%M:%S')"
-                                        echo "  Hostname         : \${HOST}"
-                                        echo "  ATA_INSTANCE     : \${INST}"
-                                        echo "  Jenkins node     : ${nodeName}"
-                                        echo "  ATA_HOME         : \$ATA_HOME"
-                                        echo "  Restore archive  : \$RESTORE_PATH"
-                                        echo "  Archive size     : \${SIZE_H:-unknown} (\${ARCHIVE_GB} GB compressed)"
-                                        echo "  Available space  : \${AVAILABLE_GB} GB (required: ${params.REQUIRED_GB} GB)"
                                         echo "  Ready to restore : yes (checks passed)"
                                         echo "============================="
                                         echo ""
-                                        echo "  --- Restore commands (NOT executed; uncomment when approved) ---"
-                                        echo "  # cd \"\$ATA_HOME\""
-                                        echo "  # tar -xzf \"\$RESTORE_PATH\""
-                                        echo "  #"
-                                        echo "  # Optional: stop application services before restore, then start after."
-                                        echo "  # Optional SV1: restore ConfigItemsBk_* CSV/config from separate backup if used."
-                                        echo "  --- End commented restore ---"
-                                        echo ""
                                         } >> "\$LOG"
-
-                                        echo "============================="
-                                        echo "  FILES SYSTEM RESTORE REPORT"
-                                        echo "  (validation only — no files removed, no extract run)"
-                                        echo "  Restore archive  : \$RESTORE_PATH"
-                                        echo "  Archive size     : \${SIZE_H:-unknown}"
-                                        echo "  Available space  : \${AVAILABLE_GB} GB (required: ${params.REQUIRED_GB} GB)"
-                                        echo "============================="
-                                        echo ""
                                         echo "--- Restore commands (NOT executed; uncomment when approved) ---"
-                                        echo "# cd \"\$ATA_HOME\""
-                                        echo "# tar -xzf \"\$RESTORE_PATH\""
-                                        echo "#"
-                                        echo "# Optional: stop application services before restore, then start after."
+                                        cd \"\$ATA_HOME\""
+                                        ls -arlthd  admin data imp cmuplift CVS rel sv svhaenv kafka kafkaenv px pxenv diameter diameterenv  .orapathenv .perlenv .gsenv .cvsignore || true
                                         echo "--- End commented restore ---"
                                     """
+                                    stash name: "backup-log-${nodeName}",
+                                    includes: "artifact_${nodeName}.log",
+                                    allowEmpty: true
+
                                 }
                             }
                         }
@@ -199,24 +174,58 @@ pipeline {
             }
         }
 
-    }
-
-    post {
-        success {
-            echo 'FilesystemRestore validation completed'
-            script {
-                def nodes = []
-                Jenkins.instance.nodes.each { n ->
-                    if (n.getLabelString().contains(params.Environment)) {
-                        nodes << n.getNodeName()
+        // Stage 4: Combine all node logs into one Jenkins artifact
+        stage('Stage 4: Combine logs into one artifact') {
+            steps {
+                script {
+                    def nodes = []
+                    Jenkins.instance.nodes.each { n ->
+                        if (n.getLabelString().contains(params.Environment)) {
+                            nodes << n.getNodeName()
+                        }
                     }
-                }
-                for (n in nodes) {
-                    node(n) {
-                        archiveArtifacts artifacts: '*.log', fingerprint: true, allowEmptyArchive: true
+
+                    def combinedLog = "Restore_Report_${BUILD_NUMBER}.log"
+
+                    node("${params.Environment}") {
+                        sh """
+                            rm -f ${combinedLog}
+                            {
+                            echo "=========================================="
+                            echo "  COMBINED RESTORE REPORT"
+                            echo "  Build        : ${BUILD_NUMBER}"
+                            echo "  Environment  : ${params.Environment}"
+                            echo "  Generated    : \$(date '+%Y-%m-%d %H:%M:%S')"
+                            echo "  Nodes        : ${nodes.join(', ')}"
+                            echo "=========================================="
+                            echo ""
+                            } > ${combinedLog}
+                        """
+
+                        for (n in nodes) {
+                            unstash "backup-log-${n}"
+                            sh """
+                                {
+                                echo "=========================================="
+                                echo "  NODE: ${n}"
+                                echo "=========================================="
+                                cat artifact_${n}.log 2>/dev/null || echo "(no log found for ${n})"
+                                echo ""
+                                } >> ${combinedLog}
+                                rm -f artifact_${n}.log
+                            """
+                        }
+
+                        archiveArtifacts artifacts: "${combinedLog}", fingerprint: true
                     }
                 }
             }
+        }
+    }
+
+  post {
+        success {
+            echo 'Restore stage completed — combined log archived in Stage 4'
         }
 
         aborted {
@@ -224,7 +233,7 @@ pipeline {
         }
 
         failure {
-            echo 'FilesystemRestore validation failed'
+            echo 'Validation failed'
         }
     }
 }

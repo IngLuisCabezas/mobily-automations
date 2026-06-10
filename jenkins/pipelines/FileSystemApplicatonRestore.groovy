@@ -61,8 +61,6 @@ pipeline {
                                     ARCHIVE_GB=\$(du -BG "\$RESTORE_PATH" | awk '{gsub("G","",\$1); print \$1}')
 
                                     {
-                                    echo "=============================="
-                                    echo "  RESTORE PRE-CHECK (Stage 2)"
                                     echo "  Hostname       : \${HOST}"
                                     echo "  ATA_INSTANCE   : \${INST}"
                                     echo "  Jenkins node   : ${nodeName}"
@@ -70,7 +68,6 @@ pipeline {
                                     echo "  Restore archive: \$RESTORE_PATH"
                                     echo "  Archive size   : \${ARCHIVE_GB} GB (compressed)"
                                     echo "  Available      : \${AVAILABLE_GB} GB (required: ${params.REQUIRED_GB} GB)"
-                                    echo "  Archive exists : yes"
                                     } > "\$LOG"
 
                                     if [ "\$AVAILABLE_GB" -lt "${params.REQUIRED_GB}" ]; then
@@ -139,7 +136,7 @@ pipeline {
                                         fi
 
                                         RESTORE_PATH="\$ATA_HOME/\$RESTORE_FILE"
-                                        cd "\$ATA_HOME"
+                                        cd "\$ATA_HOME" || exit 1
 
                                         echo "=== Restore archive on server ==="
                                         ls -larth "\$RESTORE_PATH"
@@ -149,17 +146,19 @@ pipeline {
                                         SIZE_H=\$(ls -lh "\$RESTORE_PATH" 2>/dev/null | awk '{print \$5}')
 
                                         {
-                                        echo "  RESTORE PROCESS (Stage 3)"
-                                        echo "  Date             : \$(date '+%Y-%m-%d %H:%M:%S')"
-                                        echo "  Ready to restore : yes (checks passed)"
-                                        echo "============================="
-                                        echo ""
+                                        echo "  Restore started  : \$(date '+%Y-%m-%d %H:%M:%S')"
                                         } >> "\$LOG"
-                                        echo "--- Restore commands (NOT executed; uncomment when approved) ---"
-                                        cd \"\$ATA_HOME\""
+                                        echo "--- Restore commands ---"
                                         ls -arlthd  admin data imp cmuplift CVS rel sv svhaenv kafka kafkaenv px pxenv diameter diameterenv  .orapathenv .perlenv .gsenv .cvsignore || true
-                                        echo "--- End commented restore ---"
-                                    """
+                                        rm -rf admin data imp cmuplift CVS rel sv svhaenv kafka kafkaenv px pxenv diameter diameterenv  .orapathenv .perlenv .gsenv .cvsignore || true
+										echo "--- Remove done ---"
+										tar -I "pigz -dc" -xf  "\$RESTORE_FILE"
+										ls -arlthd  admin data imp cmuplift CVS rel sv svhaenv kafka kafkaenv px pxenv diameter diameterenv  .orapathenv .perlenv .gsenv .cvsignore || true
+										echo "--- un tar done ---"
+                                        {
+                                        echo "  Restore finished  : \$(date '+%Y-%m-%d %H:%M:%S')"
+                                        } >> "\$LOG"                                  
+								  """
                                     stash name: "backup-log-${nodeName}",
                                     includes: "artifact_${nodeName}.log",
                                     allowEmpty: true

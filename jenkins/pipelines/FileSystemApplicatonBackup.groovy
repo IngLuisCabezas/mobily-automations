@@ -53,13 +53,11 @@ pipeline {
                                     AVAILABLE_GB=\$(df -BG "\$ATA_HOME" | awk 'NR==2 {gsub("G","",\$4); print \$4}')
 
                                     {
-                                    echo "=============================="
                                     echo "  Hostname     : \${HOST}"
                                     echo "  ATA_INSTANCE : \${INST}"
                                     echo "  Jenkins node : ${nodeName}"
                                     echo "  ATA_HOME     : \$ATA_HOME"
                                     echo "  Available    : \${AVAILABLE_GB} GB (required: ${params.REQUIRED_GB} GB)"
-                                    echo "=============================="
                                     } > "\$LOG"
 
                                     if [ "\$AVAILABLE_GB" -lt "${params.REQUIRED_GB}" ]; then
@@ -151,13 +149,12 @@ pipeline {
 
                                             cd "\$ATA_HOME"
                                             {
-                                            echo "============================="
-                                            echo "  CONFIG ITEMS BACKUP (SV1)"
-                                            echo "  Directory : \$ATA_HOME/\$CONFIG_BK_DIR"
-                                            echo "============================="
+                                            echo "  ConfigItems Backup Directory: \$ATA_HOME/\$CONFIG_BK_DIR"
                                             } >> "\$LOG"
                                         fi
-
+                                        {
+                                        echo "  Backup Started: \$(date '+%Y-%m-%d %H:%M:%S')"
+                                        } >> "\$LOG"
                                         cp .profile profile_${BUILD_NUMBER}_\$DATE
 
                                         tar --ignore-failed-read \
@@ -165,33 +162,36 @@ pipeline {
                                             --exclude='data/server/log/*' \
                                             --exclude='data/server/log.old/*' \
                                             --exclude='data/server/config/tomcat/logs/*' \
+                                            --exclude='data/server/invoices/*' \
+                                            --exclude='data/server/output/*' \
                                             --exclude='admin/releases/*' \
                                             --exclude='sv/*.tar.gz' \
                                             --exclude="*.sok" \
-                                            -zcf "\$ATA_HOME/\$FILE" \
+                                            -I "pigz -p 4 -9" -cf "\$ATA_HOME/\$FILE" \
                                             .cvsignore .gsenv .orapathenv .perlenv \
                                             diameterenv kafkaenv svhaenv pxenv \
                                             cmuplift admin csg_view CVS data diameter \
                                             kafka imp rel px svt \
                                             profile_${BUILD_NUMBER}_\$DATE \
                                             sv/\$(svversion | awk 'FNR==3') \
-                                            *env
+                                            *env || true
 
                                         echo "Backup finished on ${nodeName}"
                                         ls -lh "\$ATA_HOME/\$FILE"
 
                                         SIZE=\$(ls -lh "\$ATA_HOME/\$FILE" 2>/dev/null | awk '{print \$5}')
                                         {
-                                        echo "============================="
-                                        echo "  BACKUP COMPLETED"
-                                        echo "  Date          : \$(date '+%Y-%m-%d %H:%M:%S')"
+                                        echo "  Backup Finished : \$(date '+%Y-%m-%d %H:%M:%S')"
                                         echo "  Archive file  : \$FILE"
                                         echo "  Full path     : \$ATA_HOME/\$FILE"
                                         echo "  Size          : \${SIZE:-unknown}"
-                                        echo "============================="
                                         echo ""
                                         } >> "\$LOG"
                                     """
+
+                                    stash name: "backup-log-${nodeName}",
+                                           includes: "artifact_${nodeName}.log",
+                                           allowEmpty: true
                                 }
                             }
                         }
@@ -202,24 +202,59 @@ pipeline {
             }
         }
 
+        // Stage 4: Combine all node logs into one Jenkins artifact
+        stage('Stage 4: Combine logs into one artifact') {
+            steps {
+                script {
+                    def nodes = []
+                    Jenkins.instance.nodes.each { n ->
+                        if (n.getLabelString().contains(params.Environment)) {
+                            nodes << n.getNodeName()
+                        }
+                    }
+
+                    def combinedLog = "BackupReport_${BUILD_NUMBER}.log"
+
+                    node("${params.Environment}") {
+                        sh """
+                            rm -f ${combinedLog}
+                            {
+                            echo "=========================================="
+                            echo "  COMBINED BACKUP REPORT"
+                            echo "  Build        : ${BUILD_NUMBER}"
+                            echo "  Environment  : ${params.Environment}"
+                            echo "  Generated    : \$(date '+%Y-%m-%d %H:%M:%S')"
+                            echo "  Nodes        : ${nodes.join(', ')}"
+                            echo "=========================================="
+                            echo ""
+                            } > ${combinedLog}
+                        """
+
+                        for (n in nodes) {
+                            unstash "backup-log-${n}"
+                            sh """
+                                {
+                                echo "=========================================="
+                                echo "  NODE: ${n}"
+                                echo "=========================================="
+                                cat artifact_${n}.log 2>/dev/null || echo "(no log found for ${n})"
+                                echo ""
+                                } >> ${combinedLog}
+                                rm -f artifact_${n}.log
+                            """
+                        }
+
+                        archiveArtifacts artifacts: "${combinedLog}", fingerprint: true
+                    }
+                }
+            }
+        }
+
     }
 
     post {
         success {
-            echo 'Backup stage completed'
-            script {
-                def nodes = []
-                Jenkins.instance.nodes.each { n ->
-                    if (n.getLabelString().contains(params.Environment)) {
-                        nodes << n.getNodeName()
-                    }
-                }
-                for (n in nodes) {
-                    node(n) {
-                        archiveArtifacts artifacts: '*.log', fingerprint: true, allowEmptyArchive: true
-                    }
-                }
-            }
+            echo 'Backup stage completed — combined log archived in Stage 4'
         }
 
         aborted {
